@@ -1,12 +1,27 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { Header } from "@/components/Header";
+import { HeroSection } from "@/components/HeroSection";
+import { Features } from "@/components/Features";
+import { CampaignForm } from "@/components/CampaignForm";
+import { Dashboard } from "@/components/Dashboard";
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <HeroSection />
+      <Features />
+      <CampaignForm />
+      <Dashboard />
+      
+      {/* Footer */}
+      <footer className="bg-card border-t border-border py-12">
+        <div className="container mx-auto px-6 text-center">
+          <p className="text-muted-foreground">
+            © 2024 LinkedinAI Pro. All rights reserved. 
+            <span className="text-primary ml-2">Transform your outreach today.</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
