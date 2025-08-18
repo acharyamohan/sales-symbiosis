@@ -1,9 +1,22 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
+// Use harmless fallbacks to prevent runtime crashes when env vars are missing in dev
+export const supabase = createClient(
+  supabaseUrl || 'http://localhost',
+  supabaseAnonKey || 'public-anon-key'
+)
+
+// Expose client for debugging in the browser console during development
+// Allows: window.supabase.auth.getSession(), window.supabase.functions.invoke(...)
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).supabase = supabase
+}
 
 export type Database = {
   public: {
@@ -98,7 +111,7 @@ export type Database = {
           job_title: string
           company: string
           linkedin_url: string
-          profile_analysis: any
+          profile_analysis: unknown
           status: 'pending' | 'contacted' | 'replied' | 'converted' | 'no_response'
           created_at: string
           updated_at: string
@@ -110,7 +123,7 @@ export type Database = {
           job_title: string
           company: string
           linkedin_url: string
-          profile_analysis?: any
+          profile_analysis?: unknown
           status?: 'pending' | 'contacted' | 'replied' | 'converted' | 'no_response'
           created_at?: string
           updated_at?: string
@@ -122,7 +135,7 @@ export type Database = {
           job_title?: string
           company?: string
           linkedin_url?: string
-          profile_analysis?: any
+          profile_analysis?: unknown
           status?: 'pending' | 'contacted' | 'replied' | 'converted' | 'no_response'
           created_at?: string
           updated_at?: string

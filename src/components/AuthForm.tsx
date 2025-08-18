@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +13,7 @@ export function AuthForm() {
   const { signIn, signUp } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [lastError, setLastError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -24,15 +26,27 @@ export function AuthForm() {
     e.preventDefault()
     setLoading(true)
 
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return toast({
+        title: 'Configuration error',
+        description: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. See README to configure environment variables.',
+        variant: 'destructive',
+      })
+    }
+
     const { error } = await signIn(formData.email, formData.password)
     
     if (error) {
+      setLastError(error.message)
+      console.error('Sign-in error:', error)
       toast({
         title: 'Error',
         description: error.message,
         variant: 'destructive',
       })
     } else {
+      setLastError(null)
       toast({
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
@@ -46,6 +60,15 @@ export function AuthForm() {
     e.preventDefault()
     setLoading(true)
 
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return toast({
+        title: 'Configuration error',
+        description: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. See README to configure environment variables.',
+        variant: 'destructive',
+      })
+    }
+
     const { error } = await signUp(formData.email, formData.password, {
       full_name: formData.fullName,
       company: formData.company,
@@ -53,12 +76,15 @@ export function AuthForm() {
     })
     
     if (error) {
+      setLastError(error.message)
+      console.error('Sign-up error:', error)
       toast({
         title: 'Error',
         description: error.message,
         variant: 'destructive',
       })
     } else {
+      setLastError(null)
       toast({
         title: 'Account created!',
         description: 'Please check your email to verify your account.',
@@ -120,7 +146,7 @@ export function AuthForm() {
                   </div>
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || !isSupabaseConfigured}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
                 </Button>
@@ -205,13 +231,30 @@ export function AuthForm() {
                   />
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || !isSupabaseConfigured}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
+          {lastError && (
+            <div className="mt-2 text-sm text-destructive">
+              {lastError.includes('Email not confirmed') ? (
+                <p>
+                  Your email is not confirmed. Please check your inbox for a verification email,
+                  or confirm the user in Supabase Auth → Users. You can also disable email confirmations for development.
+                </p>
+              ) : (
+                <p>{lastError}</p>
+              )}
+            </div>
+          )}
+          {!isSupabaseConfigured && (
+            <p className="mt-4 text-sm text-destructive">
+              Environment variables not set. Define <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in a <code>.env</code> file.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

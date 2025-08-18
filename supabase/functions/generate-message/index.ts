@@ -1,58 +1,95 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
+import OpenAI from 'https://deno.land/x/openai@v4.58.1/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
+
+type MessageType = 'connection' | 'follow_up_1' | 'follow_up_2' | 'follow_up_3'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { status: 204, headers: corsHeaders })
   }
 
   try {
     const { prospect, campaign, messageType, profileAnalysis } = await req.json()
-    
-    // Simulate AI message generation (in real implementation, use OpenAI API)
-    const messageTemplates = {
-      connection: [
-        `Hi ${prospect.name}, I noticed your experience in ${campaign.target_industry} at ${prospect.company}. I work with companies like yours helping with ${campaign.product_service}. Would love to connect and share some insights!`,
-        `Hello ${prospect.name}, your background in ${prospect.job_title} caught my attention. I specialize in helping ${campaign.target_industry} companies with ${campaign.product_service}. Let's connect!`,
-        `Hi ${prospect.name}, saw your recent post about ${campaign.target_industry}. I help companies like ${prospect.company} with ${campaign.product_service}. Would be great to connect and exchange ideas!`
-      ],
-      follow_up_1: [
-        `Hi ${prospect.name}, I sent a connection request last week about ${campaign.product_service}. Just wanted to follow up - would you be interested in a quick 15-minute chat about how we're helping ${campaign.target_industry} companies?`,
-        `Hello ${prospect.name}, following up on my connection request. I've been working with similar ${prospect.job_title}s in ${campaign.target_industry} on ${campaign.product_service}. Would love to share some insights with you.`
-      ],
-      follow_up_2: [
-        `Hi ${prospect.name}, I know you're busy, but wanted to share a quick success story. We recently helped a ${campaign.target_industry} company similar to ${prospect.company} achieve great results with ${campaign.product_service}. Interested in learning more?`,
-        `Hello ${prospect.name}, just wanted to reach out one more time about ${campaign.product_service}. If now isn't the right time, I completely understand. Feel free to reach out when it makes sense for you.`
-      ],
-      follow_up_3: [
-        `Hi ${prospect.name}, this will be my last message. I really believe ${campaign.product_service} could benefit ${prospect.company}. If you're ever interested in learning more, feel free to reach out. Best of luck with your ${campaign.target_industry} initiatives!`
-      ]
+
+    const voice = String(campaign?.brand_voice || 'friendly')
+    const type: MessageType = ['connection','follow_up_1','follow_up_2','follow_up_3'].includes(messageType) ? messageType : 'connection'
+
+    const system = `You are an expert SDR writing short, personalized LinkedIn ${type.replaceAll('_',' ')} messages.
+Rules:
+- 280 characters max.
+- No fluff. Specific, respectful, value-forward.
+- Adapt tone to brand voice: ${voice}.
+- If follow-up, reference prior context briefly.
+- Never invent facts; use provided details only.`
+
+    const context = {
+      prospect,
+      campaign,
+      profileAnalysis: profileAnalysis ?? null,
+      messageType: type,
     }
 
-    const messages = messageTemplates[messageType] || []
-    const selectedMessage = messages[Math.floor(Math.random() * messages.length)]
+    const prompt = `Write the message only (no quotes). Data: ${JSON.stringify(context)}`
 
-    // Adjust tone based on brand voice
-    let finalMessage = selectedMessage
-    if (campaign.brand_voice === 'formal') {
-      finalMessage = selectedMessage.replace(/Hi /g, 'Dear ').replace(/!/g, '.')
-    } else if (campaign.brand_voice === 'enthusiastic') {
-      finalMessage = selectedMessage + ' 🚀'
+    const openaiKey = Deno.env.get('OPENAI_API_KEY')
+    if (openaiKey) {
+      const openai = new OpenAI({ apiKey: openaiKey })
+      const resp = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.4,
+        max_tokens: 200,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      })
+      const message = resp.choices?.[0]?.message?.content?.trim() || ''
+      return new Response(JSON.stringify({ message, confidence: 90, personalizationScore: 85 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
-    return new Response(JSON.stringify({ 
-      message: finalMessage,
-      confidence: Math.floor(Math.random() * 20) + 80, // 80-100
-      personalizationScore: Math.floor(Math.random() * 30) + 70 // 70-100
-    }), {
+    // Fallback: Hugging Face Inference API
+    const hfKey = Deno.env.get('HF_API_KEY')
+    if (hfKey) {
+      const model = Deno.env.get('HF_TEXT_MODEL') || 'mistralai/Mistral-7B-Instruct-v0.2'
+      const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${hfKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: `${system}\n\nUser: ${prompt}\nAssistant:`,
+          parameters: { max_new_tokens: 200, temperature: 0.5, do_sample: true },
+        }),
+      })
+      if (!res.ok) throw new Error(`HF error ${res.status}`)
+      const json = await res.json()
+      // Response can be array or object depending on model pipeline
+      const message = Array.isArray(json)
+        ? (json[0]?.generated_text || '').split('Assistant:').pop()?.trim() || ''
+        : (json?.generated_text || json?.[0]?.generated_text || '').trim()
+      return new Response(JSON.stringify({ message, confidence: 85, personalizationScore: 80 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Last resort static template
+    const template = `Hi ${prospect?.name || 'there'}, I saw your work in ${campaign?.target_industry}. We help teams with ${campaign?.product_service}. Would you be open to a quick chat?`
+    return new Response(JSON.stringify({ message: template, confidence: 85, personalizationScore: 75 }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const msg = typeof error === 'object' && error && 'message' in error ? (error as Error).message : String(error)
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

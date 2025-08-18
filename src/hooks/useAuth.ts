@@ -7,11 +7,22 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    let isMounted = true
+    const abort = new AbortController()
+
+    const load = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!isMounted) return
+        setUser(session?.user ?? null)
+      } catch {
+        if (!isMounted) return
+        setUser(null)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    load()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -19,7 +30,11 @@ export function useAuth() {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+      abort.abort()
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {
@@ -30,7 +45,11 @@ export function useAuth() {
     return { data, error }
   }
 
-  const signUp = async (email: string, password: string, metadata?: any) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    metadata?: { full_name?: string; company?: string; role?: string }
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

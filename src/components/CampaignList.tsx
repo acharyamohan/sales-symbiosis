@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { Play, Pause, MoreHorizontal, Users, MessageSquare, TrendingUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,34 +30,48 @@ export function CampaignList() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (user) {
-      fetchCampaigns()
-    }
-  }, [user])
-
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = useCallback(async () => {
+    if (!user?.id) return
     try {
       const { data, error } = await supabase
         .from('campaigns')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
       setCampaigns(data || [])
-    } catch (error: any) {
+    } catch (error) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : typeof error === 'string'
+          ? error
+          : JSON.stringify(error)
+      console.error('Failed to fetch campaigns:', error)
       toast({
         title: 'Error',
-        description: 'Failed to fetch campaigns.',
+        description: `Failed to fetch campaigns: ${message}`,
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id, toast])
 
-  const updateCampaignStatus = async (campaignId: string, newStatus: string) => {
+  useEffect(() => {
+    fetchCampaigns()
+    const handler = () => fetchCampaigns()
+    window.addEventListener('campaign:created', handler)
+    return () => window.removeEventListener('campaign:created', handler)
+  }, [fetchCampaigns])
+
+  
+
+  const updateCampaignStatus = async (
+    campaignId: string,
+    newStatus: Campaign['status']
+  ) => {
     try {
       const { error } = await supabase
         .from('campaigns')
@@ -66,23 +81,30 @@ export function CampaignList() {
       if (error) throw error
 
       setCampaigns(campaigns.map(c => 
-        c.id === campaignId ? { ...c, status: newStatus as any } : c
+        c.id === campaignId ? { ...c, status: newStatus } : c
       ))
 
       toast({
         title: 'Campaign Updated',
         description: `Campaign status changed to ${newStatus}.`,
       })
-    } catch (error: any) {
+    } catch (error) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : typeof error === 'string'
+          ? error
+          : JSON.stringify(error)
+      console.error('Failed to update campaign:', error)
       toast({
         title: 'Error',
-        description: 'Failed to update campaign.',
+        description: `Failed to update campaign: ${message}`,
         variant: 'destructive',
       })
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Campaign['status']) => {
     switch (status) {
       case 'active': return 'bg-green-500'
       case 'paused': return 'bg-yellow-500'
@@ -116,6 +138,62 @@ export function CampaignList() {
       )
     }
     return null
+  }
+
+  const discoverProspects = async (campaignId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('discover-prospects', {
+        body: { campaignId },
+      })
+      if (error) throw error
+
+      toast({
+        title: 'Discovery complete',
+        description: `Found and inserted ${data?.inserted ?? 0} prospects`,
+      })
+    } catch (error) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : typeof error === 'string'
+          ? error
+          : JSON.stringify(error)
+      console.error('Discover prospects error:', error)
+      toast({
+        title: 'Error',
+        description: `Failed to discover prospects: ${message}`,
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const crawlProspectsApify = async (campaignId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('crawl-prospects', {
+        body: { campaignId, maxResults: 30 },
+      })
+      if (error) throw error
+
+      toast({
+        title: 'Crawl complete',
+        description: `Inserted ${data?.inserted ?? 0} prospects via Apify`,
+      })
+      // refresh list indirectly
+      window.dispatchEvent(new CustomEvent('campaign:created'))
+    } catch (error) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : typeof error === 'string'
+          ? error
+          : JSON.stringify(error)
+      console.error('Crawl prospects error:', error)
+      toast({
+        title: 'Error',
+        description: `Failed to crawl prospects: ${message}`,
+        variant: 'destructive',
+      })
+    }
   }
 
   if (loading) {
@@ -180,7 +258,11 @@ export function CampaignList() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => discoverProspects(campaign.id)}>Discover Prospects (Serper)</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => crawlProspectsApify(campaign.id)}>Crawl Prospects (Apify)</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/campaign/${campaign.id}`}>View Details</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem>Edit Campaign</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive">
                           Delete Campaign
