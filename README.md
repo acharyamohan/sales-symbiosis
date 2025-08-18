@@ -59,6 +59,24 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Backend & Edge Functions)
+- Apify (LinkedIn Data Extraction)
+
+## Quick Setup
+
+If you're encountering the "Edge Function returned a non-2xx status code" error:
+
+1. **Check the SETUP.md file** for detailed configuration instructions
+2. **Run the diagnostic tool** by clicking "Show Diagnostics" in the dashboard
+3. **Deploy Edge Functions** using the provided scripts:
+   - Windows: `deploy-functions.bat`
+   - Mac/Linux: `./deploy-functions.sh`
+
+## Common Issues
+
+- **Edge Function errors**: Usually caused by missing environment variables or undeployed functions
+- **Docker issues**: Ensure Docker is running with elevated privileges on Windows
+- **API rate limits**: Monitor your Apify and LinkedIn usage
 
 ## How can I deploy this project?
 

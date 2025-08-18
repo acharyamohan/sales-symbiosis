@@ -110,7 +110,34 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     const msg = typeof err === 'object' && err && 'message' in err ? (err as any).message : String(err);
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...cors, "content-type": "application/json" } });
+    console.error('Crawl prospects error:', err);
+    
+    // Provide more specific error messages
+    let statusCode = 500;
+    let errorMessage = msg;
+    
+    if (msg.includes('Missing env:')) {
+      statusCode = 500;
+      errorMessage = `Configuration error: ${msg}. Please check your Supabase secrets.`;
+    } else if (msg.includes('Apify HTTP')) {
+      statusCode = 502;
+      errorMessage = `Apify API error: ${msg}. Please check your APIFY_TOKEN and APIFY_SEARCH_ACTOR_ID.`;
+    } else if (msg.includes('Campaign not found')) {
+      statusCode = 404;
+      errorMessage = msg;
+    } else if (msg.includes('campaignId is required')) {
+      statusCode = 400;
+      errorMessage = msg;
+    }
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      details: msg,
+      timestamp: new Date().toISOString()
+    }), { 
+      status: statusCode, 
+      headers: { ...cors, "content-type": "application/json" } 
+    });
   }
 });
 

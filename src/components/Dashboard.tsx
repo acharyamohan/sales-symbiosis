@@ -12,10 +12,15 @@ import {
   ThumbsUp,
   Calendar,
   Brain,
-  BarChart3
+  BarChart3,
+  Settings
 } from "lucide-react";
+import { DiagnosticPanel } from "./DiagnosticPanel";
+import { useState } from "react";
 
 export const Dashboard = () => {
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  
   const campaigns = [
     {
       id: 1,
@@ -64,14 +69,34 @@ export const Dashboard = () => {
             <BarChart3 className="h-4 w-4 text-accent-foreground" />
             <span className="text-sm font-medium text-accent-foreground">Campaign Dashboard</span>
           </div>
-          <h2 className="text-4xl font-bold text-foreground mb-4">
-            Track Your 
-            <span className="bg-gradient-primary bg-clip-text text-transparent"> Outreach Performance</span>
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Monitor response rates, analyze prospect engagement, and optimize your campaigns in real-time.
-          </p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex-1">
+              <h2 className="text-4xl font-bold text-foreground mb-4">
+                Track Your 
+                <span className="bg-gradient-primary bg-clip-text text-transparent"> Outreach Performance</span>
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl">
+                Monitor response rates, analyze prospect engagement, and optimize your campaigns in real-time.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDiagnostics(!showDiagnostics)}
+              className="ml-4"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
+            </Button>
+          </div>
         </div>
+
+        {/* Diagnostics Panel */}
+        {showDiagnostics && (
+          <div className="mb-8">
+            <DiagnosticPanel />
+          </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">

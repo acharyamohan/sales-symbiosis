@@ -181,18 +181,42 @@ export function CampaignList() {
       // refresh list indirectly
       window.dispatchEvent(new CustomEvent('campaign:created'))
     } catch (error) {
-      const message =
-        typeof error === 'object' && error !== null && 'message' in error
-          ? String((error as { message?: unknown }).message)
-          : typeof error === 'string'
-          ? error
-          : JSON.stringify(error)
-      console.error('Crawl prospects error:', error)
+      let message = 'Unknown error occurred';
+      
+      if (typeof error === 'object' && error !== null) {
+        if ('message' in error) {
+          message = String((error as { message?: unknown }).message);
+        } else if ('error' in error) {
+          // Handle Edge Function error response
+          const errorResponse = error as { error?: string; details?: string };
+          message = errorResponse.error || errorResponse.details || message;
+        }
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      
+      console.error('Crawl prospects error:', error);
+      
+      // Provide more helpful error messages
+      let title = 'Error';
+      let description = `Failed to crawl prospects: ${message}`;
+      
+      if (message.includes('Configuration error')) {
+        title = 'Configuration Error';
+        description = 'Please check your Supabase secrets and environment variables. See SETUP.md for instructions.';
+      } else if (message.includes('Apify API error')) {
+        title = 'API Error';
+        description = 'There was an issue with the Apify service. Please check your API credentials.';
+      } else if (message.includes('Campaign not found')) {
+        title = 'Campaign Not Found';
+        description = 'The specified campaign could not be found.';
+      }
+      
       toast({
-        title: 'Error',
-        description: `Failed to crawl prospects: ${message}`,
+        title,
+        description,
         variant: 'destructive',
-      })
+      });
     }
   }
 
