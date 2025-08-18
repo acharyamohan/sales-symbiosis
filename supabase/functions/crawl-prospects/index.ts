@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
   } as const;
 
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  
   try {
     const SUPABASE_URL = env("SUPABASE_URL") as string;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -47,8 +48,24 @@ Deno.serve(async (req) => {
     const APIFY_SEARCH_ACTOR_ID = env("APIFY_SEARCH_ACTOR_ID") as string;
     const LINKEDIN_LI_AT = env("LINKEDIN_LI_AT") as string;
 
-    const { campaignId, maxResults = 30 } = (await req.json()) as { campaignId: string; maxResults?: number };
-    if (!campaignId) throw new Error("campaignId is required");
+    // Enhanced JSON parsing with better error handling
+    let requestBody;
+    try {
+      const text = await req.text();
+      if (!text || text.trim() === '') {
+        throw new Error("Request body is empty");
+      }
+      requestBody = JSON.parse(text);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      throw new Error(`Invalid JSON in request body: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
+    }
+
+    const { campaignId, maxResults = 30 } = requestBody as { campaignId: string; maxResults?: number };
+    
+    if (!campaignId) {
+      throw new Error("campaignId is required in request body");
+    }
 
     const useService = Boolean(SERVICE_ROLE);
     const supabase = createClient(SUPABASE_URL, useService ? SERVICE_ROLE : ANON);
@@ -128,6 +145,9 @@ Deno.serve(async (req) => {
     } else if (msg.includes('campaignId is required')) {
       statusCode = 400;
       errorMessage = msg;
+    } else if (msg.includes('Invalid JSON') || msg.includes('Request body is empty')) {
+      statusCode = 400;
+      errorMessage = `Bad request: ${msg}`;
     }
     
     return new Response(JSON.stringify({ 
@@ -140,5 +160,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-
