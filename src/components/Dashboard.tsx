@@ -16,10 +16,12 @@ import {
   Settings
 } from "lucide-react";
 import { DiagnosticPanel } from "./DiagnosticPanel";
+import { ProspectInsights } from "./ProspectInsights";
 import { useState } from "react";
 
 export const Dashboard = () => {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   
   const campaigns = [
     {
@@ -214,6 +216,18 @@ export const Dashboard = () => {
               <Button variant="primary" className="w-full">
                 Create New Campaign
               </Button>
+              {campaigns.map((campaign) => (
+                <Button 
+                  key={`view-${campaign.id}`}
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedCampaign(campaign.id.toString())}
+                  className="w-full mt-2"
+                >
+                  <Brain className="h-4 w-4 mr-2" />
+                  View AI Insights - {campaign.name}
+                </Button>
+              ))}
             </CardContent>
           </Card>
 
@@ -262,6 +276,13 @@ export const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* AI Insights Section */}
+        {selectedCampaign && (
+          <div className="mt-8">
+            <ProspectInsights campaignId={selectedCampaign} />
+          </div>
+        )}
       </div>
     </section>
   );
